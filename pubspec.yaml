@@ -1,0 +1,54 @@
+name: uniguide
+description: A centralized campus information and Q&A platform.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase
+  supabase_flutter: ^2.9.0
+
+  # Deep links
+  app_links: ^7.0.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Local storage
+  shared_preferences: ^2.2.2
+  image_picker: ^1.0.7
+
+  # Navigation
+  go_router: ^17.1.0
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # UI
+  timeago: ^3.6.0
+  cached_network_image: ^3.3.0
+  flutter_widget_from_html_core: ^0.17.0
+  infinite_scroll_pagination: ^5.1.1
+  url_launcher: ^6.2.5
+  cupertino_icons: ^1.0.2
+  flutter_launcher_icons: ^0.13.1
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon.png"
