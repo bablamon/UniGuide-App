@@ -30,7 +30,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
-                Text('Please write a bit more detail in your question.')),
+            Text('Please write a bit more detail in your question.')),
       );
       return;
     }
@@ -40,11 +40,11 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
     try {
       final tag = await ref.read(qaRepoProvider).getDisplayTag();
       await ref.read(qaRepoProvider).postQuestion(
-            body: sanitizePlainText(_ctrl.text, maxLength: 5000),
-            tag: _tag,
-            authorTag: tag,
-            authorUid: uid,
-          );
+        body: sanitizePlainText(_ctrl.text, maxLength: 5000),
+        tag: _tag,
+        authorTag: tag,
+        authorUid: uid,
+      );
       ref.invalidate(questionsProvider);
       if (mounted) context.pop();
     } catch (e) {
@@ -70,18 +70,18 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: _posting
                 ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppTheme.accent))
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppTheme.accent))
                 : TextButton(
-                    onPressed: _post,
-                    child: const Text('Post',
-                        style: TextStyle(
-                            color: AppTheme.accent,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15)),
-                  ),
+              onPressed: _post,
+              child: const Text('Post',
+                  style: TextStyle(
+                      color: AppTheme.accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15)),
+            ),
           ),
         ],
       ),
@@ -135,7 +135,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                           color:
-                              sel ? AppTheme.accent : AppTheme.border,
+                          sel ? AppTheme.accent : AppTheme.border,
                           width: 0.5),
                     ),
                     child: Text(t,
@@ -161,14 +161,21 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
                 maxLength: 5000,
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
-                    color: AppTheme.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     height: 1.6),
                 decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
                   hintText:
-                      'What do you want to know? Be specific — better questions get better answers.',
+                  'What do you want to know? Be specific — better questions get better answers.',
                   hintMaxLines: 3,
+                  hintStyle: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.4)),
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
