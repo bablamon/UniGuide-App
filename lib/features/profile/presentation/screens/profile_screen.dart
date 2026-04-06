@@ -10,38 +10,9 @@ import 'dart:math';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../auth/data/auth_service.dart';
+import '../../data/profile_repository.dart';
 
 const _photoKey = 'profile_photo_path';
-
-final _questionCountProvider = FutureProvider<int>((ref) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) return 0;
-  final data = await Supabase.instance.client
-      .from('questions')
-      .select('id')
-      .eq('author_uid', uid);
-  return data.length;
-});
-
-final _answerCountProvider = FutureProvider<int>((ref) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) return 0;
-  final data = await Supabase.instance.client
-      .from('answers')
-      .select('id')
-      .eq('author_uid', uid);
-  return data.length;
-});
-
-final _bookmarkCountProvider = FutureProvider<int>((ref) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) return 0;
-  final data = await Supabase.instance.client
-      .from('bookmarks')
-      .select('id')
-      .eq('user_id', uid);
-  return data.length;
-});
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -163,9 +134,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   @override
   Widget build(BuildContext context) {
     final uid = Supabase.instance.client.auth.currentUser?.id;
-    final questionCount = ref.watch(_questionCountProvider);
-    final answerCount = ref.watch(_answerCountProvider);
-    final bookmarkCount = ref.watch(_bookmarkCountProvider);
+    final stats = ref.watch(userStatsProvider);
     final themeMode = ref.watch(themeProvider);
     final isDark = themeMode == ThemeMode.dark;
     final cs = Theme.of(context).colorScheme;
@@ -299,22 +268,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           Row(children: [
                             _HeroStat(
                                 label: 'QUESTIONS',
-                                value: questionCount.when(
-                                    data: (v) => '$v',
+                                value: stats.when(
+                                    data: (s) => '${s.questionCount}',
                                     loading: () => '...',
                                     error: (_, __) => '0')),
                             _divider(),
                             _HeroStat(
                                 label: 'ANSWERS',
-                                value: answerCount.when(
-                                    data: (v) => '$v',
+                                value: stats.when(
+                                    data: (s) => '${s.answerCount}',
                                     loading: () => '...',
                                     error: (_, __) => '0')),
                             _divider(),
                             _HeroStat(
                                 label: 'BOOKMARKS',
-                                value: bookmarkCount.when(
-                                    data: (v) => '$v',
+                                value: stats.when(
+                                    data: (s) => '${s.bookmarkCount}',
                                     loading: () => '...',
                                     error: (_, __) => '0')),
                           ]),
@@ -463,6 +432,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   child: GestureDetector(
                     onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Sign out?'),
+                          content: const Text(
+                            'You will need to request a new magic link or sign in with Google to get back in.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Sign out',
+                                  style: TextStyle(color: Color(0xFFE24B4A))),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true || !context.mounted) return;
                       await ref.read(authServiceProvider).signOut();
                       if (context.mounted) context.go('/login');
                     },

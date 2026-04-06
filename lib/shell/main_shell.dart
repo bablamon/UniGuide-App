@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/connectivity_provider.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
@@ -14,12 +16,28 @@ class MainShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _locationToIndex(location);
+    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
 
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          if (!isOnline)
+            MaterialBanner(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              content: const Text(
+                'You are offline. Some features may not work.',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              leading: const Icon(Icons.wifi_off_rounded, size: 18),
+              backgroundColor: Colors.orange.shade100,
+              actions: const [SizedBox.shrink()],
+            ),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppTheme.bgCard,

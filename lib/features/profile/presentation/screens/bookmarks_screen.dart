@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../wiki/data/wiki_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/error_handler.dart';
+import '../../../../core/utils/logger.dart';
+
+final _bookmarksLog = AppLogger('BookmarksScreen');
 
 final _bookmarksProvider = StreamProvider.autoDispose<List<WikiArticle>>((ref) {
   final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -29,7 +33,8 @@ final _bookmarksProvider = StreamProvider.autoDispose<List<WikiArticle>>((ref) {
             .whereType<Map<String, dynamic>>()
             .map(WikiArticle.fromJson)
             .toList();
-      });
+      })
+      .handleError((e, s) => _bookmarksLog.error('bookmarks stream error', e, s));
 });
 
 class BookmarksScreen extends ConsumerWidget {
@@ -52,7 +57,7 @@ class BookmarksScreen extends ConsumerWidget {
       body: bookmarksAsync.when(
         loading: () =>
             const Center(child: CircularProgressIndicator(color: AppTheme.accent)),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(userFriendlyMessage(e))),
         data: (articles) => articles.isEmpty
             ? Center(
                 child: Column(

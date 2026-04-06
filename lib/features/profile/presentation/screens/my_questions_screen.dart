@@ -5,10 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../qa/data/qa_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/error_handler.dart';
+import '../../../../core/utils/logger.dart';
+
+final _myQuestionsLog = AppLogger('MyQuestionsScreen');
 
 final _myQuestionsProvider = StreamProvider<List<Question>>((ref) {
   final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
-  return QARepository().streamMyQuestions(uid);
+  return QARepository()
+      .streamMyQuestions(uid)
+      .handleError((e, s) => _myQuestionsLog.error('my questions stream error', e, s));
 });
 
 class MyQuestionsScreen extends ConsumerWidget {
@@ -30,7 +36,7 @@ class MyQuestionsScreen extends ConsumerWidget {
       ),
       body: questionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.accent)),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(userFriendlyMessage(e))),
         data: (questions) => questions.isEmpty
             ? Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [

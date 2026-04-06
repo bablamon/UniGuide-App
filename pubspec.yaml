@@ -29,7 +29,11 @@ dependencies:
   # Fonts
   google_fonts: ^6.2.1
 
+  # Connectivity
+  connectivity_plus: ^6.0.0
+
   # UI
+  shimmer: ^3.0.0
   timeago: ^3.6.0
   cached_network_image: ^3.3.0
   flutter_widget_from_html_core: ^0.17.0

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/logger.dart';
+import '../../../core/utils/retry.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -35,8 +37,11 @@ class WikiArticle {
   });
 
   factory WikiArticle.fromJson(Map<String, dynamic> d) {
+    if (d['id'] == null) {
+      throw const FormatException('WikiArticle.fromJson: missing required field "id"');
+    }
     return WikiArticle(
-      id: d['id'],
+      id: d['id'] as String,
       title: d['title'] ?? '',
       summary: d['summary'] ?? '',
       body: d['body'] ?? '',
@@ -46,10 +51,10 @@ class WikiArticle {
       isPinned: d['is_pinned'] ?? false,
       status: d['status'] ?? 'published',
       lastVerifiedAt: d['last_verified_at'] != null
-          ? DateTime.parse(d['last_verified_at'])
+          ? DateTime.tryParse(d['last_verified_at'].toString())
           : null,
       updatedAt: d['updated_at'] != null
-          ? DateTime.parse(d['updated_at'])
+          ? DateTime.tryParse(d['updated_at'].toString())
           : null,
       viewCount: d['view_count'] ?? 0,
       bookmarkCount: d['bookmark_count'] ?? 0,
@@ -96,6 +101,7 @@ final pinnedArticleProvider = FutureProvider<WikiArticle?>((ref) {
 
 class WikiRepository {
   final _db = Supabase.instance.client;
+  final _log = AppLogger('WikiRepository');
 
   // Only fetch columns the list UI actually uses — body can be very large HTML
   // and loading it for every article in the list caused severe main-thread jank.
@@ -105,47 +111,52 @@ class WikiRepository {
       'target_years, target_branches';
 
   Future<List<WikiArticle>> getArticles({String category = 'all'}) async {
-    List<Map<String, dynamic>> data;
-    if (category == 'all') {
-      data = await _db
-          .from('wiki_articles')
-          .select(_listColumns)
-          .eq('status', 'published')
-          .order('updated_at', ascending: false);
-    } else {
-      data = await _db
-          .from('wiki_articles')
-          .select(_listColumns)
-          .eq('status', 'published')
-          .eq('category', category)
-          .order('updated_at', ascending: false);
-    }
-    return data.map(WikiArticle.fromJson).toList();
+    return retryAsync(() async {
+      List<Map<String, dynamic>> data;
+      if (category == 'all') {
+        data = await _db
+            .from('wiki_articles')
+            .select(_listColumns)
+            .eq('status', 'published')
+            .order('updated_at', ascending: false);
+      } else {
+        data = await _db
+            .from('wiki_articles')
+            .select(_listColumns)
+            .eq('status', 'published')
+            .eq('category', category)
+            .order('updated_at', ascending: false);
+      }
+      return data.map(WikiArticle.fromJson).toList();
+    });
   }
 
   Future<WikiArticle?> getArticle(String id) async {
     try {
-      final data = await _db
+      final data = await retryAsync(() => _db
           .from('wiki_articles')
           .select()
           .eq('id', id)
-          .single();
-      // fire-and-forget view count increment
-      _db.rpc('increment_view_count', params: {'article_id': id});
+          .single());
+      // Fire-and-forget view count increment — log errors instead of losing them.
+      _db.rpc('increment_view_count', params: {'article_id': id}).catchError(
+        (e) => _log.warning('view count increment failed', e),
+      );
       return WikiArticle.fromJson(data);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      _log.error('getArticle($id) failed', e, stackTrace);
       return null;
     }
   }
 
   Future<WikiArticle?> getPinnedArticle() async {
-    final data = await _db
+    final data = await retryAsync(() => _db
         .from('wiki_articles')
         .select()
         .eq('is_pinned', true)
         .eq('status', 'published')
         .limit(1)
-        .maybeSingle();
+        .maybeSingle());
     if (data == null) return null;
     return WikiArticle.fromJson(data);
   }
