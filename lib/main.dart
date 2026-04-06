@@ -1,16 +1,30 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'core/config.dart';
+import 'core/utils/logger.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/router.dart';
 import 'features/auth/data/auth_service.dart';
 
+final _log = AppLogger('Main');
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Global error boundary — catches all unhandled exceptions.
+  FlutterError.onError = (details) {
+    _log.error('FlutterError', details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    _log.error('PlatformError', error, stack);
+    return true;
+  };
 
   // Validate build-time configuration before anything else.
   AppConfig.assertValid();
@@ -34,14 +48,17 @@ void main() async {
     warmOnboardingCache(user.id); // intentionally not awaited
   }
 
-  runApp(ProviderScope(
-    overrides: [
-      // ThemeNotifier reads from this provider and initializes synchronously —
-      // no async SharedPreferences load, no extra rebuild after first frame.
-      sharedPreferencesProvider.overrideWithValue(prefs),
-    ],
-    child: const UniGuideApp(),
-  ));
+  runZonedGuarded(
+    () => runApp(ProviderScope(
+      overrides: [
+        // ThemeNotifier reads from this provider and initializes synchronously —
+        // no async SharedPreferences load, no extra rebuild after first frame.
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const UniGuideApp(),
+    )),
+    (error, stack) => _log.error('Uncaught zone error', error, stack),
+  );
 }
 
 class UniGuideApp extends ConsumerStatefulWidget {
@@ -66,20 +83,20 @@ class _UniGuideAppState extends ConsumerState<UniGuideApp> {
       if (initialUri != null) {
         await _processLink(initialUri);
       }
-    } catch (e) {
-      debugPrint('Initial link error: $e');
+    } catch (e, stackTrace) {
+      _log.warning('Initial link error', e, stackTrace);
     }
 
     _appLinks.uriLinkStream.listen(
       (uri) async => await _processLink(uri),
-      onError: (e) => debugPrint('Deep link stream error: $e'),
+      onError: (e) => _log.warning('Deep link stream error', e),
     );
   }
 
   Future<void> _processLink(Uri uri) async {
     final error = await ref.read(authServiceProvider).completeSignIn(uri);
     if (error != null) {
-      debugPrint('Sign-in error: $error');
+      _log.warning('Sign-in error: $error');
     }
   }
 

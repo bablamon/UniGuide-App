@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../data/wiki_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/skeleton.dart';
 
 final _selectedCategoryProvider = StateProvider<String>((ref) => 'all');
 
@@ -21,16 +22,23 @@ class WikiScreen extends ConsumerWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _HeroBanner(isDark: isDark, category: category)),
-            SliverToBoxAdapter(child: _SearchBar(isDark: isDark)),
-            SliverToBoxAdapter(child: _CategoryChips(selected: category)),
-            const SliverToBoxAdapter(child: SizedBox(height: 14)),
-            if (category == 'all') const _PinnedSliver(),
-            _ArticlesSliver(category: category),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+        child: RefreshIndicator(
+          color: AppTheme.accent,
+          onRefresh: () async {
+            ref.invalidate(wikiArticlesProvider(category));
+            ref.invalidate(pinnedArticleProvider);
+          },
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _HeroBanner(isDark: isDark, category: category)),
+              SliverToBoxAdapter(child: _SearchBar(isDark: isDark)),
+              SliverToBoxAdapter(child: _CategoryChips(selected: category)),
+              const SliverToBoxAdapter(child: SizedBox(height: 14)),
+              if (category == 'all') const _PinnedSliver(),
+              _ArticlesSliver(category: category),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            ],
+          ),
         ),
       ),
     );
@@ -267,9 +275,14 @@ class _ArticlesSliver extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final articles = ref.watch(wikiArticlesProvider(category));
     return articles.when(
-      loading: () => const SliverFillRemaining(
-          child: Center(
-              child: CircularProgressIndicator(color: AppTheme.accent))),
+      loading: () => SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (_, __) => const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+              child: WikiCardSkeleton(),
+            ),
+            childCount: 5,
+          )),
       error: (e, _) => const SliverFillRemaining(
           child: Center(
               child: Text('Could not load articles',

@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../data/wiki_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/sanitizer.dart';
+import '../../../../core/utils/error_handler.dart';
 
 class WikiArticleScreen extends ConsumerWidget {
   final String articleId;
@@ -18,7 +20,7 @@ class WikiArticleScreen extends ConsumerWidget {
       body: articleAsync.when(
         loading: () => const Center(
             child: CircularProgressIndicator(color: AppTheme.accent)),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(userFriendlyMessage(e))),
         data: (article) {
           if (article == null) {
             return const Center(child: Text('Article not found'));
@@ -28,10 +30,12 @@ class WikiArticleScreen extends ConsumerWidget {
           final isDark = Theme.of(context).brightness == Brightness.dark;
           final htmlTextColor = isDark ? '#F0EDE8' : '#1A1A1A';
 
-          // ✅ PERFORMANCE FIX: limit HTML size
-          final safeBody = article.body.length > 4000
-              ? article.body.substring(0, 4000)
-              : article.body;
+          // Sanitize HTML to strip dangerous tags/attributes, then limit size.
+          final safeBody = sanitizeHtml(
+            article.body.length > 4000
+                ? article.body.substring(0, 4000)
+                : article.body,
+          );
 
           return CustomScrollView(
             slivers: [
@@ -228,20 +232,34 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
   Future<void> _toggle() async {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
+    // Optimistic update — revert on failure.
+    final previous = _bookmarked;
     setState(() {
       _loading = true;
       _bookmarked = !_bookmarked;
     });
-    await WikiRepository()
-        .toggleBookmark(widget.articleId, uid, _bookmarked);
-    if (!mounted) return;
-    setState(() => _loading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(_bookmarked
-              ? 'Article bookmarked'
-              : 'Bookmark removed')),
-    );
+    try {
+      await WikiRepository()
+          .toggleBookmark(widget.articleId, uid, _bookmarked);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(_bookmarked
+                ? 'Article bookmarked'
+                : 'Bookmark removed')),
+      );
+    } catch (_) {
+      // Rollback on failure.
+      if (!mounted) return;
+      setState(() {
+        _bookmarked = previous;
+        _loading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update bookmark')),
+      );
+    }
   }
 
   @override

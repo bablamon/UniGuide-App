@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/logger.dart';
+import '../../../core/utils/validators.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
@@ -11,13 +13,13 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 class AuthService {
   final _auth = Supabase.instance.client.auth;
+  final _log = AppLogger('AuthService');
 
   Future<String?> sendMagicLink(String email) async {
     final trimmed = email.trim().toLowerCase();
     if (trimmed.isEmpty) return 'Please enter your email address.';
 
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(trimmed)) {
+    if (!isValidEmail(trimmed)) {
       return 'Please enter a valid email address.';
     }
 
@@ -42,7 +44,7 @@ class AuthService {
       return _mapError(e.message);
     } catch (e) {
       // Not all deep links are auth links — ignore silently
-      debugPrint('completeSignIn (non-auth link): $e');
+      _log.debug('completeSignIn (non-auth link): $e');
       return null;
     }
   }

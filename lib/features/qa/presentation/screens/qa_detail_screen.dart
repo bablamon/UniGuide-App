@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../data/qa_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/sanitizer.dart';
+import '../../../../core/utils/error_handler.dart';
 
 class QADetailScreen extends ConsumerStatefulWidget {
   final String questionId;
@@ -18,9 +20,9 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
   bool _posting = false;
 
   Future<void> _postAnswer() async {
-    if (_ctrl.text.trim().length < 5) {
+    if (_ctrl.text.trim().length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Answer must be at least 5 characters.')),
+        const SnackBar(content: Text('Please write a more detailed answer (at least 10 characters).')),
       );
       return;
     }
@@ -31,7 +33,7 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
       final tag = await ref.read(qaRepoProvider).getDisplayTag();
       await ref.read(qaRepoProvider).postAnswer(
         questionId: widget.questionId,
-        body: _ctrl.text.trim(),
+        body: sanitizePlainText(_ctrl.text, maxLength: 10000),
         authorTag: tag,
         authorUid: uid,
       );
@@ -42,7 +44,7 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to post answer: $e')),
+        SnackBar(content: Text('Failed to post answer: ${userFriendlyMessage(e)}')),
       );
     } finally {
       if (mounted) setState(() => _posting = false);
@@ -74,7 +76,7 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
           Expanded(
             child: questionAsync.when(
               loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.accent)),
-              error: (e, _) => Center(child: Text('$e')),
+              error: (e, _) => Center(child: Text(userFriendlyMessage(e))),
               data: (question) {
                 if (question == null) return const Center(child: Text('Not found'));
                 return CustomScrollView(
@@ -204,6 +206,7 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
                   child: TextField(
                     controller: _ctrl,
                     maxLines: null,
+                    maxLength: 10000,
                     textInputAction: TextInputAction.newline,
                     decoration: InputDecoration(
                       hintText: 'Write your answer...',

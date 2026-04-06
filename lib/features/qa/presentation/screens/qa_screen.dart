@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../data/qa_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/skeleton.dart';
 
 final _qaFilterProvider = StateProvider<String>((ref) => 'all');
 
@@ -159,10 +160,10 @@ class _QAScreenState extends ConsumerState<QAScreen> {
                   ),
                 ),
                 firstPageProgressIndicatorBuilder: (_) =>
-                    const Center(child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: CircularProgressIndicator(color: AppTheme.accent),
-                    )),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(children: List.generate(5, (_) => const QuestionCardSkeleton())),
+                    ),
                 newPageProgressIndicatorBuilder: (_) =>
                     const Center(child: Padding(
                       padding: EdgeInsets.all(16),

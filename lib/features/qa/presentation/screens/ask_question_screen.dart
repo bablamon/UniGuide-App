@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/qa_repository.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/sanitizer.dart';
+import '../../../../core/utils/error_handler.dart';
 
 class AskQuestionScreen extends ConsumerStatefulWidget {
   const AskQuestionScreen({super.key});
@@ -38,7 +40,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
     try {
       final tag = await ref.read(qaRepoProvider).getDisplayTag();
       await ref.read(qaRepoProvider).postQuestion(
-            body: _ctrl.text.trim(),
+            body: sanitizePlainText(_ctrl.text, maxLength: 5000),
             tag: _tag,
             authorTag: tag,
             authorUid: uid,
@@ -48,7 +50,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to post question: $e')),
+        SnackBar(content: Text('Failed to post question: ${userFriendlyMessage(e)}')),
       );
       setState(() => _posting = false);
     }
@@ -156,6 +158,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
               child: TextField(
                 controller: _ctrl,
                 maxLines: null,
+                maxLength: 5000,
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
                 style: const TextStyle(

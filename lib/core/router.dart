@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'utils/logger.dart';
 
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/check_email_screen.dart';
@@ -113,7 +114,8 @@ Future<bool> _isOnboardingComplete(String uid) =>
             .eq('id', uid)
             .single();
         return data['onboarding_complete'] == true;
-      } catch (_) {
+      } catch (e, stackTrace) {
+        AppLogger('Router').warning('onboarding check failed for $uid', e, stackTrace);
         // Remove on failure so the next call retries rather than caching an error
         _onboardingFutures.remove(uid);
         return false;

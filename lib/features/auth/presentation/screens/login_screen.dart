@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/validators.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -176,8 +177,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   decoration: const InputDecoration(hintText: 'you@example.com'),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Please enter your email';
-                    final reg = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-                    if (!reg.hasMatch(v.trim())) return 'Enter a valid email address';
+                    if (!isValidEmail(v)) return 'Enter a valid email address';
                     return null;
                   },
                 ),

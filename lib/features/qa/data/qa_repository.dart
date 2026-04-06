@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/logger.dart';
+import '../../../core/utils/retry.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -29,8 +31,11 @@ class Question {
   });
 
   factory Question.fromJson(Map<String, dynamic> d) {
+    if (d['id'] == null) {
+      throw const FormatException('Question.fromJson: missing required field "id"');
+    }
     return Question(
-      id: d['id'],
+      id: d['id'] as String,
       body: d['body'] ?? '',
       tag: d['tag'] ?? 'General',
       authorTag: d['author_tag'] ?? 'Anonymous',
@@ -38,7 +43,7 @@ class Question {
       upvotes: d['upvotes'] ?? 0,
       answerCount: d['answer_count'] ?? 0,
       isResolved: d['is_resolved'] ?? false,
-      createdAt: DateTime.parse(d['created_at']),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
       upvotedBy: List<String>.from(d['upvoted_by'] ?? []),
     );
   }
@@ -68,15 +73,18 @@ class Answer {
   });
 
   factory Answer.fromJson(Map<String, dynamic> d) {
+    if (d['id'] == null) {
+      throw const FormatException('Answer.fromJson: missing required field "id"');
+    }
     return Answer(
-      id: d['id'],
+      id: d['id'] as String,
       body: d['body'] ?? '',
       authorTag: d['author_tag'] ?? 'Anonymous',
       authorUid: d['author_uid'] ?? '',
       upvotes: d['upvotes'] ?? 0,
       isVerified: d['is_verified'] ?? false,
       verifiedBy: d['verified_by'],
-      createdAt: DateTime.parse(d['created_at']),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
       upvotedBy: List<String>.from(d['upvoted_by'] ?? []),
     );
   }
@@ -109,16 +117,19 @@ final questionProvider = FutureProvider.family<Question?, String>((ref, id) {
 
 class QARepository {
   final _db = Supabase.instance.client;
+  final _log = AppLogger('QARepository');
 
   static const pageSize = 15;
 
   Future<List<Question>> fetchQuestionsPage({required int page, String filter = 'all'}) async {
-    final from = page * pageSize;
-    final to = from + pageSize - 1;
-    var query = _db.from('questions').select();
-    if (filter != 'all') query = query.eq('tag', filter);
-    final data = await query.order('created_at', ascending: false).range(from, to);
-    return data.map(Question.fromJson).toList();
+    return retryAsync(() async {
+      final from = page * pageSize;
+      final to = from + pageSize - 1;
+      var query = _db.from('questions').select();
+      if (filter != 'all') query = query.eq('tag', filter);
+      final data = await query.order('created_at', ascending: false).range(from, to);
+      return data.map(Question.fromJson).toList();
+    });
   }
 
   Stream<List<Question>> streamMyQuestions(String uid) {
@@ -147,17 +158,19 @@ class QARepository {
   }
 
   Future<List<Answer>> fetchAnswers(String questionId) async {
-    final rows = await _db
-        .from('answers')
-        .select()
-        .eq('question_id', questionId)
-        .order('created_at', ascending: false);
-    final answers = rows.map(Answer.fromJson).toList();
-    answers.sort((a, b) {
-      if (a.isVerified != b.isVerified) return a.isVerified ? -1 : 1;
-      return b.upvotes.compareTo(a.upvotes);
+    return retryAsync(() async {
+      final rows = await _db
+          .from('answers')
+          .select()
+          .eq('question_id', questionId)
+          .order('created_at', ascending: false);
+      final answers = rows.map(Answer.fromJson).toList();
+      answers.sort((a, b) {
+        if (a.isVerified != b.isVerified) return a.isVerified ? -1 : 1;
+        return b.upvotes.compareTo(a.upvotes);
+      });
+      return answers;
     });
-    return answers;
   }
 
   Stream<List<Answer>> streamAnswers(String questionId) {
@@ -185,7 +198,8 @@ class QARepository {
           .eq('id', id)
           .single();
       return Question.fromJson(data);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      _log.error('getQuestion($id) failed', e, stackTrace);
       return null;
     }
   }
@@ -200,7 +214,8 @@ class QARepository {
           .eq('id', user.id)
           .maybeSingle();
       return data?['display_tag'] ?? 'Student';
-    } catch (_) {
+    } catch (e, stackTrace) {
+      _log.warning('getDisplayTag failed, falling back to "Student"', e, stackTrace);
       return 'Student';
     }
   }
