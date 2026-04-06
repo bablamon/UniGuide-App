@@ -54,6 +54,13 @@ class _QAScreenState extends ConsumerState<QAScreen> {
     super.dispose();
   }
 
+  static String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(_qaFilterProvider);
@@ -85,8 +92,8 @@ class _QAScreenState extends ConsumerState<QAScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Good morning',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
+                    Text(_greeting(),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF666666))),
                     const SizedBox(height: 4),
                     const Text('Ask anything.\nStay anonymous.',
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
@@ -227,7 +234,7 @@ class _FilterChip extends StatelessWidget {
           color: selected ? (isDark ? const Color(0xFF333333) : const Color(0xFF1A1A1A)) : cs.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: selected ? Colors.transparent : const Color(0xFFE0DDD8), width: 0.5)),
+              color: selected ? Colors.transparent : (isDark ? AppTheme.borderDark : AppTheme.border), width: 0.5)),
       child: Text(label, style: TextStyle(
           fontSize: 12, fontWeight: FontWeight.w600,
           color: selected ? Colors.white : cs.onSurface.withValues(alpha:0.6))),
@@ -262,7 +269,9 @@ class _QuestionCard extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: cs.surface,
-                border: Border.all(color: const Color(0xFFE0DDD8), width: 0.5),
+                border: Border.all(
+                    color: isDark ? AppTheme.borderDark : AppTheme.border,
+                    width: 0.5),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
