@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/app_theme.dart';
@@ -20,33 +21,53 @@ class MainShell extends ConsumerWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final currentIndex = _locationToIndex(location);
     final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: Column(
         children: [
           if (!isOnline)
-            MaterialBanner(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              content: const Text(
-                'You are offline. Some features may not work.',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: isDark ? const Color(0xFF2A1F00) : const Color(0xFFFFF3E0),
+              child: SafeArea(
+                bottom: false,
+                child: Row(
+                  children: [
+                    Icon(Icons.wifi_off_rounded, size: 16,
+                        color: isDark ? Colors.orange.shade300 : Colors.orange.shade800),
+                    const SizedBox(width: 10),
+                    Text(
+                      'You\'re offline. Some features may not work.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? Colors.orange.shade300 : Colors.orange.shade900,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              leading: const Icon(Icons.wifi_off_rounded, size: 18),
-              backgroundColor: Colors.orange.shade100,
-              actions: const [SizedBox.shrink()],
             ),
           Expanded(child: child),
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.bgCard,
-          border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? AppTheme.borderDark : AppTheme.border,
+              width: 0.5,
+            ),
+          ),
         ),
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 56,
+            height: 60,
             child: Row(
               children: [
                 _NavItem(
@@ -91,24 +112,41 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor = isDark ? AppTheme.textHintDark : AppTheme.textHint;
+
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: active ? AppTheme.accent : AppTheme.textHint,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppTheme.accent.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                size: 22,
+                color: active ? AppTheme.accent : inactiveColor,
+              ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: active ? AppTheme.accent : AppTheme.textHint,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active ? AppTheme.accent : inactiveColor,
               ),
             ),
           ],

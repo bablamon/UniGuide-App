@@ -59,6 +59,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+    final borderColor = isDark ? AppTheme.borderDark : AppTheme.border;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -76,7 +80,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   width: _step == i ? 20 : 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: _step == i ? AppTheme.accent : AppTheme.border,
+                    color: _step == i ? AppTheme.accent : borderColor,
                     borderRadius: BorderRadius.circular(3),
                   ),
                 )),
@@ -87,9 +91,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(
-                  color: AppTheme.bgCard,
+                  color: cs.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.border, width: 0.5),
+                  border: Border.all(color: borderColor, width: 0.5),
                 ),
                 child: Icon(
                   _step == 0 ? Icons.school_rounded : Icons.account_tree_rounded,

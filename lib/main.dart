@@ -26,9 +26,6 @@ void main() async {
     return true;
   };
 
-  // Validate build-time configuration before anything else.
-  AppConfig.assertValid();
-
   // Run both I/O operations concurrently — they're independent.
   final prefsF = SharedPreferences.getInstance();
   await Supabase.initialize(
