@@ -29,10 +29,7 @@ class AppConfig {
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
     // Development fallback - replace with your actual key in .env
-    defaultValue:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
-        'eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY2V5amxhbG9ydGpsdXd4enBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDUyMjEsImV4cCI6MjA5MDcyMTIyMX0.'
-        'dnjir28UhUD8O0FsvR5j_gAo5ELkzHPdiG13PEZStyQ',
+    defaultValue: '',
   );
 
   /// Validate that configuration values are set and non-empty.
