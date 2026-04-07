@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/retry.dart';
+import '../../../core/utils/schema_validator.dart';
+import '../../../core/utils/rate_limiter.dart';
 
 // ── Model ────────────────────────────────────────────────────────────────────
 
@@ -38,7 +40,9 @@ class WikiArticle {
 
   factory WikiArticle.fromJson(Map<String, dynamic> d) {
     if (d['id'] == null) {
-      throw const FormatException('WikiArticle.fromJson: missing required field "id"');
+      throw const FormatException(
+        'WikiArticle.fromJson: missing required field "id"',
+      );
     }
     return WikiArticle(
       id: d['id'] as String,
@@ -83,13 +87,17 @@ class WikiCategory {
 
 final wikiRepoProvider = Provider<WikiRepository>((ref) => WikiRepository());
 
-final wikiArticlesProvider =
-    FutureProvider.family<List<WikiArticle>, String>((ref, category) {
+final wikiArticlesProvider = FutureProvider.family<List<WikiArticle>, String>((
+  ref,
+  category,
+) {
   return ref.read(wikiRepoProvider).getArticles(category: category);
 });
 
-final wikiArticleProvider =
-    FutureProvider.family<WikiArticle?, String>((ref, id) {
+final wikiArticleProvider = FutureProvider.family<WikiArticle?, String>((
+  ref,
+  id,
+) {
   return ref.read(wikiRepoProvider).getArticle(id);
 });
 
@@ -133,15 +141,13 @@ class WikiRepository {
 
   Future<WikiArticle?> getArticle(String id) async {
     try {
-      final data = await retryAsync(() => _db
-          .from('wiki_articles')
-          .select()
-          .eq('id', id)
-          .single());
-      // Fire-and-forget view count increment — log errors instead of losing them.
-      _db.rpc('increment_view_count', params: {'article_id': id}).catchError(
-        (e) => _log.warning('view count increment failed', e),
+      final data = await retryAsync(
+        () => _db.from('wiki_articles').select().eq('id', id).single(),
       );
+      // Fire-and-forget view count increment — log errors instead of losing them.
+      _db
+          .rpc('increment_view_count', params: {'article_id': id})
+          .catchError((e) => _log.warning('view count increment failed', e));
       return WikiArticle.fromJson(data);
     } catch (e, stackTrace) {
       _log.error('getArticle($id) failed', e, stackTrace);
@@ -150,27 +156,49 @@ class WikiRepository {
   }
 
   Future<WikiArticle?> getPinnedArticle() async {
-    final data = await retryAsync(() => _db
-        .from('wiki_articles')
-        .select()
-        .eq('is_pinned', true)
-        .eq('status', 'published')
-        .limit(1)
-        .maybeSingle());
+    final data = await retryAsync(
+      () => _db
+          .from('wiki_articles')
+          .select()
+          .eq('is_pinned', true)
+          .eq('status', 'published')
+          .limit(1)
+          .maybeSingle(),
+    );
     if (data == null) return null;
     return WikiArticle.fromJson(data);
   }
 
   Future<void> toggleBookmark(
-      String articleId, String uid, bool bookmarked) async {
-    await _db.rpc('toggle_bookmark', params: {
-      'p_article_id': articleId,
-      'p_user_id': uid,
-      'p_add': bookmarked,
-    });
+    String articleId,
+    String uid,
+    bool bookmarked,
+  ) async {
+    // Check rate limit before processing.
+    final rateLimitResult = checkBookmarkRateLimit(uid);
+    if (!rateLimitResult.allowed) {
+      throw ValidationError(formatRetryMessage(rateLimitResult.retryAfter));
+    }
+
+    final validation = validateBookmarkInput(articleId: articleId, uid: uid);
+    if (validation != null) {
+      throw validation;
+    }
+    await _db.rpc(
+      'toggle_bookmark',
+      params: {
+        'p_article_id': articleId,
+        'p_user_id': uid,
+        'p_add': bookmarked,
+      },
+    );
   }
 
   Future<bool> isBookmarked(String articleId, String uid) async {
+    final validation = validateBookmarkInput(articleId: articleId, uid: uid);
+    if (validation != null) {
+      throw validation;
+    }
     final data = await _db
         .from('bookmarks')
         .select()

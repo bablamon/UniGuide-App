@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/utils/rate_limiter.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final authStateProvider = StreamProvider<User?>((ref) {
-  return Supabase.instance.client.auth.onAuthStateChange
-      .map((event) => event.session?.user);
+  return Supabase.instance.client.auth.onAuthStateChange.map(
+    (event) => event.session?.user,
+  );
 });
 
 class AuthService {
@@ -21,6 +23,17 @@ class AuthService {
 
     if (!isValidEmail(trimmed)) {
       return 'Please enter a valid email address.';
+    }
+
+    // Check rate limit before attempting to send.
+    // Use email as the key since user isn't authenticated yet.
+    final rateLimitResult = rateLimiter.check(
+      trimmed,
+      'auth_magic_link',
+      RateLimits.authMagicLink,
+    );
+    if (!rateLimitResult.allowed) {
+      return formatRetryMessage(rateLimitResult.retryAfter);
     }
 
     try {

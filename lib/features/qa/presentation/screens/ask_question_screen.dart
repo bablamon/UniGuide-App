@@ -6,6 +6,7 @@ import '../../data/qa_repository.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/sanitizer.dart';
 import '../../../../core/utils/error_handler.dart';
+import '../../../../core/utils/schema_validator.dart';
 
 class AskQuestionScreen extends ConsumerStatefulWidget {
   const AskQuestionScreen({super.key});
@@ -26,31 +27,41 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
   }
 
   Future<void> _post() async {
-    if (_ctrl.text.trim().length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-            Text('Please write a bit more detail in your question.')),
-      );
-      return;
-    }
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
+
+    final validationError = validateQuestionInput(
+      body: _ctrl.text,
+      tag: _tag,
+      authorTag: null,
+      authorUid: uid,
+    );
+    if (validationError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError.message)));
+      return;
+    }
+
     setState(() => _posting = true);
     try {
       final tag = await ref.read(qaRepoProvider).getDisplayTag();
-      await ref.read(qaRepoProvider).postQuestion(
-        body: sanitizePlainText(_ctrl.text, maxLength: 5000),
-        tag: _tag,
-        authorTag: tag,
-        authorUid: uid,
-      );
+      await ref
+          .read(qaRepoProvider)
+          .postQuestion(
+            body: sanitizePlainText(_ctrl.text, maxLength: 5000),
+            tag: _tag,
+            authorTag: tag,
+            authorUid: uid,
+          );
       ref.invalidate(questionsProvider);
       if (mounted) context.pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to post question: ${userFriendlyMessage(e)}')),
+        SnackBar(
+          content: Text('Failed to post question: ${userFriendlyMessage(e)}'),
+        ),
       );
       setState(() => _posting = false);
     }
@@ -70,18 +81,24 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: _posting
                 ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppTheme.accent))
-                : TextButton(
-              onPressed: _post,
-              child: const Text('Post',
-                  style: TextStyle(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
                       color: AppTheme.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15)),
-            ),
+                    ),
+                  )
+                : TextButton(
+                    onPressed: _post,
+                    child: const Text(
+                      'Post',
+                      style: TextStyle(
+                        color: AppTheme.accent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -99,16 +116,20 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.visibility_off_outlined,
-                      size: 16, color: AppTheme.textSecondary),
+                  Icon(
+                    Icons.visibility_off_outlined,
+                    size: 16,
+                    color: AppTheme.textSecondary,
+                  ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Your name is never shown. You appear as your year & branch only.',
                       style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                          height: 1.4),
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
@@ -129,22 +150,25 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 7),
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: sel ? AppTheme.accent : AppTheme.bgCard,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color:
-                          sel ? AppTheme.accent : AppTheme.border,
-                          width: 0.5),
+                        color: sel ? AppTheme.accent : AppTheme.border,
+                        width: 0.5,
+                      ),
                     ),
-                    child: Text(t,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: sel
-                                ? Colors.white
-                                : AppTheme.textPrimary)),
+                    child: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: sel ? Colors.white : AppTheme.textPrimary,
+                      ),
+                    ),
                   ),
                 );
               }).toList(),
@@ -162,33 +186,43 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
                 style: TextStyle(
-                    fontSize: 15,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    height: 1.6),
+                  fontSize: 15,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  height: 1.6,
+                ),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surface,
                   hintText:
-                  'What do you want to know? Be specific — better questions get better answers.',
+                      'What do you want to know? Be specific — better questions get better answers.',
                   hintMaxLines: 3,
                   hintStyle: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.4)),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                          color: AppTheme.border, width: 0.5)),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppTheme.border,
+                      width: 0.5,
+                    ),
+                  ),
                   enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                          color: AppTheme.border, width: 0.5)),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppTheme.border,
+                      width: 0.5,
+                    ),
+                  ),
                   focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                          color: AppTheme.accent, width: 1.5)),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppTheme.accent,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
               ),
             ),

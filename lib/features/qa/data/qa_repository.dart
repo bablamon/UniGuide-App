@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/retry.dart';
+import '../../../core/utils/schema_validator.dart';
+import '../../../core/utils/rate_limiter.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -32,7 +34,9 @@ class Question {
 
   factory Question.fromJson(Map<String, dynamic> d) {
     if (d['id'] == null) {
-      throw const FormatException('Question.fromJson: missing required field "id"');
+      throw const FormatException(
+        'Question.fromJson: missing required field "id"',
+      );
     }
     return Question(
       id: d['id'] as String,
@@ -43,7 +47,9 @@ class Question {
       upvotes: d['upvotes'] ?? 0,
       answerCount: d['answer_count'] ?? 0,
       isResolved: d['is_resolved'] ?? false,
-      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(d['created_at']?.toString() ?? '') ??
+          DateTime.now(),
       upvotedBy: List<String>.from(d['upvoted_by'] ?? []),
     );
   }
@@ -74,7 +80,9 @@ class Answer {
 
   factory Answer.fromJson(Map<String, dynamic> d) {
     if (d['id'] == null) {
-      throw const FormatException('Answer.fromJson: missing required field "id"');
+      throw const FormatException(
+        'Answer.fromJson: missing required field "id"',
+      );
     }
     return Answer(
       id: d['id'] as String,
@@ -84,7 +92,9 @@ class Answer {
       upvotes: d['upvotes'] ?? 0,
       isVerified: d['is_verified'] ?? false,
       verifiedBy: d['verified_by'],
-      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(d['created_at']?.toString() ?? '') ??
+          DateTime.now(),
       upvotedBy: List<String>.from(d['upvoted_by'] ?? []),
     );
   }
@@ -93,19 +103,31 @@ class Answer {
 // ── Tags ─────────────────────────────────────────────────────────────────────
 
 const qaTags = [
-  'General', 'Exams', 'ERP', 'Placements',
-  'Hostel', 'Facilities', 'Fees', 'Other',
+  'General',
+  'Exams',
+  'ERP',
+  'Placements',
+  'Hostel',
+  'Facilities',
+  'Fees',
+  'Other',
 ];
 
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 final qaRepoProvider = Provider<QARepository>((ref) => QARepository());
 
-final questionsProvider = StreamProvider.family<List<Question>, String>((ref, filter) {
+final questionsProvider = StreamProvider.family<List<Question>, String>((
+  ref,
+  filter,
+) {
   return ref.read(qaRepoProvider).streamQuestions(filter: filter);
 });
 
-final answersProvider = FutureProvider.family<List<Answer>, String>((ref, questionId) {
+final answersProvider = FutureProvider.family<List<Answer>, String>((
+  ref,
+  questionId,
+) {
   return ref.read(qaRepoProvider).fetchAnswers(questionId);
 });
 
@@ -121,13 +143,18 @@ class QARepository {
 
   static const pageSize = 15;
 
-  Future<List<Question>> fetchQuestionsPage({required int page, String filter = 'all'}) async {
+  Future<List<Question>> fetchQuestionsPage({
+    required int page,
+    String filter = 'all',
+  }) async {
     return retryAsync(() async {
       final from = page * pageSize;
       final to = from + pageSize - 1;
       var query = _db.from('questions').select();
       if (filter != 'all') query = query.eq('tag', filter);
-      final data = await query.order('created_at', ascending: false).range(from, to);
+      final data = await query
+          .order('created_at', ascending: false)
+          .range(from, to);
       return data.map(Question.fromJson).toList();
     });
   }
@@ -192,11 +219,7 @@ class QARepository {
 
   Future<Question?> getQuestion(String id) async {
     try {
-      final data = await _db
-          .from('questions')
-          .select()
-          .eq('id', id)
-          .single();
+      final data = await _db.from('questions').select().eq('id', id).single();
       return Question.fromJson(data);
     } catch (e, stackTrace) {
       _log.error('getQuestion($id) failed', e, stackTrace);
@@ -215,7 +238,11 @@ class QARepository {
           .maybeSingle();
       return data?['display_tag'] ?? 'Student';
     } catch (e, stackTrace) {
-      _log.warning('getDisplayTag failed, falling back to "Student"', e, stackTrace);
+      _log.warning(
+        'getDisplayTag failed, falling back to "Student"',
+        e,
+        stackTrace,
+      );
       return 'Student';
     }
   }
@@ -226,6 +253,21 @@ class QARepository {
     required String authorTag,
     required String authorUid,
   }) async {
+    // Check rate limit before processing.
+    final rateLimitResult = checkQuestionRateLimit(authorUid);
+    if (!rateLimitResult.allowed) {
+      throw ValidationError(formatRetryMessage(rateLimitResult.retryAfter));
+    }
+
+    final validation = validateQuestionInput(
+      body: body,
+      tag: tag,
+      authorTag: authorTag,
+      authorUid: authorUid,
+    );
+    if (validation != null) {
+      throw validation;
+    }
     await _db.from('questions').insert({
       'body': body,
       'tag': tag,
@@ -240,25 +282,73 @@ class QARepository {
     required String authorTag,
     required String authorUid,
   }) async {
-    await _db.rpc('post_answer', params: {
-      'p_question_id': questionId,
-      'p_body': body,
-      'p_author_tag': authorTag,
-      'p_author_uid': authorUid,
-    });
+    // Check rate limit before processing.
+    final rateLimitResult = checkAnswerRateLimit(authorUid);
+    if (!rateLimitResult.allowed) {
+      throw ValidationError(formatRetryMessage(rateLimitResult.retryAfter));
+    }
+
+    final validation = validateAnswerInput(
+      questionId: questionId,
+      body: body,
+      authorTag: authorTag,
+      authorUid: authorUid,
+    );
+    if (validation != null) {
+      throw validation;
+    }
+    await _db.rpc(
+      'post_answer',
+      params: {
+        'p_question_id': questionId,
+        'p_body': body,
+        'p_author_tag': authorTag,
+        'p_author_uid': authorUid,
+      },
+    );
   }
 
   Future<void> upvoteQuestion(String questionId, String uid) async {
-    await _db.rpc('upvote_question', params: {
-      'p_question_id': questionId,
-      'p_uid': uid,
-    });
+    final rateLimitResult = checkUpvoteRateLimit(uid);
+    if (!rateLimitResult.allowed) {
+      throw ValidationError(formatRetryMessage(rateLimitResult.retryAfter));
+    }
+
+    final qidErr = validateUuid(questionId, label: 'Question ID');
+    if (qidErr != null) {
+      throw ValidationError(qidErr);
+    }
+    final uidErr = validateUuid(uid, label: 'User ID');
+    if (uidErr != null) {
+      throw ValidationError(uidErr);
+    }
+    await _db.rpc(
+      'upvote_question',
+      params: {'p_question_id': questionId, 'p_uid': uid},
+    );
   }
 
-  Future<void> upvoteAnswer(String questionId, String answerId, String uid) async {
-    await _db.rpc('upvote_answer', params: {
-      'p_answer_id': answerId,
-      'p_uid': uid,
-    });
+  Future<void> upvoteAnswer(
+    String questionId,
+    String answerId,
+    String uid,
+  ) async {
+    final rateLimitResult = checkUpvoteRateLimit(uid);
+    if (!rateLimitResult.allowed) {
+      throw ValidationError(formatRetryMessage(rateLimitResult.retryAfter));
+    }
+
+    final aidErr = validateUuid(answerId, label: 'Answer ID');
+    if (aidErr != null) {
+      throw ValidationError(aidErr);
+    }
+    final uidErr = validateUuid(uid, label: 'User ID');
+    if (uidErr != null) {
+      throw ValidationError(uidErr);
+    }
+    await _db.rpc(
+      'upvote_answer',
+      params: {'p_answer_id': answerId, 'p_uid': uid},
+    );
   }
 }

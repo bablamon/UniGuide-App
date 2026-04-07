@@ -17,6 +17,10 @@ final _log = AppLogger('Main');
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Validate environment configuration before initializing any services.
+  // Fails fast with a clear error if SUPABASE_URL or SUPABASE_ANON_KEY are missing.
+  AppConfig.validate();
+
   // Global error boundary — catches all unhandled exceptions.
   FlutterError.onError = (details) {
     _log.error('FlutterError', details.exception, details.stack);
@@ -46,14 +50,16 @@ void main() async {
   }
 
   runZonedGuarded(
-    () => runApp(ProviderScope(
-      overrides: [
-        // ThemeNotifier reads from this provider and initializes synchronously —
-        // no async SharedPreferences load, no extra rebuild after first frame.
-        sharedPreferencesProvider.overrideWithValue(prefs),
-      ],
-      child: const UniGuideApp(),
-    )),
+    () => runApp(
+      ProviderScope(
+        overrides: [
+          // ThemeNotifier reads from this provider and initializes synchronously —
+          // no async SharedPreferences load, no extra rebuild after first frame.
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: const UniGuideApp(),
+      ),
+    ),
     (error, stack) => _log.error('Uncaught zone error', error, stack),
   );
 }
@@ -91,10 +97,32 @@ class _UniGuideAppState extends ConsumerState<UniGuideApp> {
   }
 
   Future<void> _processLink(Uri uri) async {
+    // Validate deep link URL before processing.
+    // Only allow our custom scheme and the expected host.
+    // This prevents SSRF and malicious redirects.
+    if (!_isValidDeepLink(uri)) {
+      _log.warning('Rejected invalid deep link: $uri');
+      return;
+    }
+
     final error = await ref.read(authServiceProvider).completeSignIn(uri);
     if (error != null) {
       _log.warning('Sign-in error: $error');
     }
+  }
+
+  bool _isValidDeepLink(Uri uri) {
+    // Allow only our custom scheme for auth redirects
+    if (uri.scheme == 'uniguide') {
+      return uri.host == 'login' || uri.host.isEmpty;
+    }
+    // Allow https for any future deep link expansion (with strict host validation)
+    if (uri.scheme == 'https') {
+      // Currently no https deep links expected - reject unless explicitly added
+      return false;
+    }
+    // Reject any other schemes (file, http, ftp, etc.)
+    return false;
   }
 
   @override
