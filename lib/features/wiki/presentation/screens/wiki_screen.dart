@@ -389,23 +389,32 @@ class _WikiCard extends StatelessWidget {
   const _WikiCard({required this.article});
 
   static const _catBgMap = {
+    'general': Color(0xFFF0EDE8),
     'exams': AppTheme.accentLight,
     'erp': AppTheme.greenLight,
     'placements': Color(0xFFFDF0D8),
     'facilities': Color(0xFFE0EEFF),
+    'events': Color(0xFFEDE8FF),
+    'clubs': Color(0xFFE8F5E9),
   };
   static const _catFgMap = {
+    'general': Color(0xFF888888),
     'exams': AppTheme.accentDark,
     'erp': AppTheme.greenDark,
     'placements': Color(0xFF854F0B),
     'facilities': Color(0xFF185FA5),
+    'events': Color(0xFF5B3FBF),
+    'clubs': Color(0xFF2E7D32),
   };
   static const _catIconMap = {
+    'general': Icons.school_rounded,
     'exams': Icons.article_rounded,
     'erp': Icons.computer_rounded,
     'placements': Icons.work_rounded,
     'facilities': Icons.map_rounded,
     'hostel': Icons.hotel_rounded,
+    'events': Icons.celebration_rounded,
+    'clubs': Icons.groups_rounded,
   };
 
   @override

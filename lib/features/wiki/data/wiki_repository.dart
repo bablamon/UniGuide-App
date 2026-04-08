@@ -70,11 +70,14 @@ class WikiArticle {
 
 const wikiCategories = [
   WikiCategory(id: 'all', label: 'All'),
+  WikiCategory(id: 'general', label: 'General'),
   WikiCategory(id: 'exams', label: 'Exams'),
   WikiCategory(id: 'erp', label: 'ERP'),
   WikiCategory(id: 'placements', label: 'Placements'),
   WikiCategory(id: 'facilities', label: 'Facilities'),
   WikiCategory(id: 'hostel', label: 'Hostel'),
+  WikiCategory(id: 'events', label: 'Events'),
+  WikiCategory(id: 'clubs', label: 'Clubs'),
 ];
 
 class WikiCategory {

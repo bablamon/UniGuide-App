@@ -63,8 +63,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, state) =>
-                    WikiArticleScreen(articleId: state.pathParameters['id']!),
+                builder: (_, state) => WikiArticleScreen(
+                  key: ValueKey(state.pathParameters['id']),
+                  articleId: state.pathParameters['id']!,
+                ),
               ),
             ],
           ),
@@ -75,8 +77,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(path: 'ask', builder: (_, __) => const AskQuestionScreen()),
               GoRoute(
                 path: ':id',
-                builder: (_, state) =>
-                    QADetailScreen(questionId: state.pathParameters['id']!),
+                builder: (_, state) => QADetailScreen(
+                  key: ValueKey(state.pathParameters['id']),
+                  questionId: state.pathParameters['id']!,
+                ),
               ),
             ],
           ),

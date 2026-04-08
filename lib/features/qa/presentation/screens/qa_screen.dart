@@ -307,6 +307,7 @@ class _QuestionCard extends ConsumerWidget {
                   GestureDetector(
                     onTap: () async {
                       await ref.read(qaRepoProvider).upvoteQuestion(question.id, uid);
+                      ref.invalidate(questionProvider(question.id));
                       onUpvoted?.call();
                     },
                     child: Container(

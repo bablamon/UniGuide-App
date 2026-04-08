@@ -112,7 +112,17 @@ class _QADetailScreenState extends ConsumerState<QADetailScreen> {
                                   Text(timeago.format(question.createdAt), style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.4))),
                                   const Spacer(),
                                   GestureDetector(
-                                    onTap: () => ref.read(qaRepoProvider).upvoteQuestion(question.id, uid),
+                                    onTap: () async {
+                                      try {
+                                        await ref.read(qaRepoProvider).upvoteQuestion(question.id, uid);
+                                        ref.invalidate(questionProvider(widget.questionId));
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(e.toString())),
+                                        );
+                                      }
+                                    },
                                     child: Row(
                                       children: [
                                         Container(
@@ -290,7 +300,17 @@ class _AnswerCard extends ConsumerWidget {
               Text(timeago.format(answer.createdAt), style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.4))),
               const Spacer(),
               GestureDetector(
-                onTap: () => ref.read(qaRepoProvider).upvoteAnswer(questionId, answer.id, uid),
+                onTap: () async {
+                  try {
+                    await ref.read(qaRepoProvider).upvoteAnswer(questionId, answer.id, uid);
+                    ref.invalidate(answersProvider(questionId));
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
+                },
                 child: Row(
                   children: [
                     Container(
