@@ -30,28 +30,52 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid == null) return;
 
-    final validationError = validateQuestionInput(
-      body: _ctrl.text,
-      tag: _tag,
-      authorTag: null,
-      authorUid: uid,
+    // Pre-flight: validate body locally before fetching authorTag
+    final bodyErr = validateRequiredString(
+      _ctrl.text,
+      maxLength: 5000,
+      label: 'Question body',
     );
-    if (validationError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(validationError.message)));
+    if (bodyErr != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(bodyErr)));
+      return;
+    }
+    if (_ctrl.text.trim().length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Question must be at least 10 characters.'),
+        ),
+      );
       return;
     }
 
     setState(() => _posting = true);
     try {
-      final tag = await ref.read(qaRepoProvider).getDisplayTag();
+      final authorTag = await ref.read(qaRepoProvider).getDisplayTag();
+
+      // Full validation now that authorTag is available
+      final validationError = validateQuestionInput(
+        body: _ctrl.text,
+        tag: _tag,
+        authorTag: authorTag,
+        authorUid: uid,
+      );
+      if (validationError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(validationError.message)));
+        }
+        setState(() => _posting = false);
+        return;
+      }
+
       await ref
           .read(qaRepoProvider)
           .postQuestion(
             body: sanitizePlainText(_ctrl.text, maxLength: 5000),
             tag: _tag,
-            authorTag: tag,
+            authorTag: authorTag,
             authorUid: uid,
           );
       ref.invalidate(questionsProvider);

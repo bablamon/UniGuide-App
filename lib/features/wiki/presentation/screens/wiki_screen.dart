@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/skeleton.dart';
 
 final _selectedCategoryProvider = StateProvider<String>((ref) => 'all');
+final _searchQueryProvider = StateProvider<String>((ref) => '');
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 // Only watches _selectedCategoryProvider — category changes don't cascade
@@ -18,6 +19,7 @@ class WikiScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final category = ref.watch(_selectedCategoryProvider);
+    final query = ref.watch(_searchQueryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -31,10 +33,10 @@ class WikiScreen extends ConsumerWidget {
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(child: _HeroBanner(isDark: isDark, category: category)),
-              SliverToBoxAdapter(child: _SearchBar(isDark: isDark)),
+              const SliverToBoxAdapter(child: _SearchBar()),
               SliverToBoxAdapter(child: _CategoryChips(selected: category)),
               const SliverToBoxAdapter(child: SizedBox(height: 14)),
-              if (category == 'all') const _PinnedSliver(),
+              if (category == 'all' && query.isEmpty) const _PinnedSliver(),
               _ArticlesSliver(category: category),
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
@@ -116,29 +118,65 @@ class _HeroBanner extends StatelessWidget {
 
 // ── Search bar ────────────────────────────────────────────────────────────────
 
-class _SearchBar extends StatelessWidget {
-  final bool isDark;
-  const _SearchBar({required this.isDark});
+class _SearchBar extends ConsumerStatefulWidget {
+  const _SearchBar();
+
+  @override
+  ConsumerState<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends ConsumerState<_SearchBar> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: isDark ? AppTheme.borderDark : AppTheme.border,
-              width: 0.5),
+      child: TextField(
+        controller: _ctrl,
+        onChanged: (v) => ref.read(_searchQueryProvider.notifier).state = v,
+        style: TextStyle(
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
-        child: const Row(children: [
-          Icon(Icons.search_rounded, size: 18, color: Color(0xFFBBBBBB)),
-          SizedBox(width: 8),
-          Text('Search guides, topics...',
-              style: TextStyle(fontSize: 13, color: Color(0xFFBBBBBB))),
-        ]),
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surface,
+          hintText: 'Search guides, topics...',
+          hintStyle: const TextStyle(fontSize: 13, color: Color(0xFFBBBBBB)),
+          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFFBBBBBB)),
+          suffixIcon: _ctrl.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFBBBBBB)),
+                  onPressed: () {
+                    _ctrl.clear();
+                    ref.read(_searchQueryProvider.notifier).state = '';
+                  },
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+                color: isDark ? AppTheme.borderDark : AppTheme.border, width: 0.5),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(
+                color: isDark ? AppTheme.borderDark : AppTheme.border, width: 0.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppTheme.accent, width: 1.5),
+          ),
+        ),
       ),
     );
   }
@@ -274,6 +312,7 @@ class _ArticlesSliver extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final articles = ref.watch(wikiArticlesProvider(category));
+    final query = ref.watch(_searchQueryProvider).trim().toLowerCase();
     return articles.when(
       loading: () => SliverList(
           delegate: SliverChildBuilderDelegate(
@@ -287,19 +326,35 @@ class _ArticlesSliver extends ConsumerWidget {
           child: Center(
               child: Text('Could not load articles',
                   style: TextStyle(color: Color(0xFF888888))))),
-      data: (list) => list.isEmpty
-          ? const SliverFillRemaining(
-              child: Center(
-                  child: Text('No articles yet',
-                      style: TextStyle(color: Color(0xFF888888)))))
-          : SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (ctx, i) => Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: _WikiCard(article: list[i]),
-                ),
-                childCount: list.length,
-              )),
+      data: (list) {
+        final filtered = query.isEmpty
+            ? list
+            : list
+                .where((a) =>
+                    a.title.toLowerCase().contains(query) ||
+                    a.summary.toLowerCase().contains(query) ||
+                    a.category.toLowerCase().contains(query))
+                .toList();
+        if (filtered.isEmpty) {
+          return SliverFillRemaining(
+            child: Center(
+              child: Text(
+                query.isEmpty ? 'No articles yet' : 'No results for "$query"',
+                style: const TextStyle(color: Color(0xFF888888)),
+              ),
+            ),
+          );
+        }
+        return SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (ctx, i) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: _WikiCard(article: filtered[i]),
+            ),
+            childCount: filtered.length,
+          ),
+        );
+      },
     );
   }
 }

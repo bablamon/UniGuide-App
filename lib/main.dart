@@ -12,7 +12,9 @@ import 'core/theme/theme_provider.dart';
 import 'core/router.dart';
 import 'features/auth/data/auth_service.dart';
 
+
 final _log = AppLogger('Main');
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -80,8 +80,11 @@ class _QAScreenState extends ConsumerState<QAScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: RefreshIndicator(
+          color: AppTheme.accent,
+          onRefresh: () async => _pagingController.refresh(),
+          child: CustomScrollView(
+            slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
@@ -188,7 +191,8 @@ class _QAScreenState extends ConsumerState<QAScreen> {
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+            ],
+          ),
         ),
       ),
     );

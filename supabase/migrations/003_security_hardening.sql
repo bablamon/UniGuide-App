@@ -66,19 +66,22 @@ CREATE TABLE IF NOT EXISTS public.rate_limit_violations (
   violation_count int DEFAULT 1,
   first_violation_at timestamptz DEFAULT now(),
   last_violation_at timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  UNIQUE (user_id, action_name)
 );
 
 -- Enable RLS on rate_limit_violations
 ALTER TABLE public.rate_limit_violations ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own violations
+DROP POLICY IF EXISTS "Users can view own rate limit violations" ON public.rate_limit_violations;
 CREATE POLICY "Users can view own rate limit violations"
   ON public.rate_limit_violations FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
 -- Users can only insert their own violations
+DROP POLICY IF EXISTS "Users can insert own rate limit violations" ON public.rate_limit_violations;
 CREATE POLICY "Users can insert own rate limit violations"
   ON public.rate_limit_violations FOR INSERT
   TO authenticated
@@ -147,22 +150,32 @@ $$;
 -- ============================================================================
 
 -- Add length constraints to questions table
+ALTER TABLE public.questions DROP CONSTRAINT IF EXISTS questions_body_length;
+ALTER TABLE public.questions DROP CONSTRAINT IF EXISTS questions_tag_length;
+ALTER TABLE public.questions DROP CONSTRAINT IF EXISTS questions_author_tag_length;
 ALTER TABLE public.questions
   ADD CONSTRAINT questions_body_length CHECK (char_length(body) <= 5000),
   ADD CONSTRAINT questions_tag_length CHECK (char_length(tag) <= 50),
   ADD CONSTRAINT questions_author_tag_length CHECK (char_length(author_tag) <= 100);
 
 -- Add length constraints to answers table
+ALTER TABLE public.answers DROP CONSTRAINT IF EXISTS answers_body_length;
+ALTER TABLE public.answers DROP CONSTRAINT IF EXISTS answers_author_tag_length;
 ALTER TABLE public.answers
   ADD CONSTRAINT answers_body_length CHECK (char_length(body) <= 5000),
   ADD CONSTRAINT answers_author_tag_length CHECK (char_length(author_tag) <= 100);
 
 -- Add length constraints to users table
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_display_tag_length;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_branch_length;
 ALTER TABLE public.users
   ADD CONSTRAINT users_display_tag_length CHECK (char_length(display_tag) <= 100),
   ADD CONSTRAINT users_branch_length CHECK (char_length(branch) <= 50);
 
 -- Add length constraints to wiki_articles table
+ALTER TABLE public.wiki_articles DROP CONSTRAINT IF EXISTS wiki_articles_title_length;
+ALTER TABLE public.wiki_articles DROP CONSTRAINT IF EXISTS wiki_articles_summary_length;
+ALTER TABLE public.wiki_articles DROP CONSTRAINT IF EXISTS wiki_articles_category_length;
 ALTER TABLE public.wiki_articles
   ADD CONSTRAINT wiki_articles_title_length CHECK (char_length(title) <= 200),
   ADD CONSTRAINT wiki_articles_summary_length CHECK (char_length(summary) <= 500),
@@ -171,6 +184,9 @@ ALTER TABLE public.wiki_articles
 -- ============================================================================
 -- 4. Duplicate question detection trigger
 -- ============================================================================
+
+-- Required for levenshtein() function used in duplicate detection
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
 
 -- Function to detect potential duplicate questions
 CREATE OR REPLACE FUNCTION public.check_duplicate_question()
@@ -181,7 +197,7 @@ RETURNS TRIGGER AS $$
   BEGIN
     -- Check for very similar questions (same body or >90% similar)
     -- Only check for recent questions (last 24 hours) to avoid performance issues
-    SELECT COUNT(*), MAX(id) INTO similar_count, similar_question_id
+    SELECT COUNT(*) INTO similar_count
     FROM public.questions
     WHERE created_at > now() - interval '24 hours'
       AND author_uid = NEW.author_uid
@@ -191,11 +207,11 @@ RETURNS TRIGGER AS $$
         OR (
           -- Levenshtein-like check: very similar (simple character overlap)
           -- This is a simplified check; production might use pg_trgm extension
-          length(NEW.body) > 10 
+          length(NEW.body) > 10
           AND levenshtein(lower(NEW.body), lower(body)) < 5
         )
       );
-    
+
     -- If similar question exists, allow but flag (could extend to reject)
     -- For now, we just log — extend this to raise exception if stricter policy needed
     IF similar_count > 0 THEN
