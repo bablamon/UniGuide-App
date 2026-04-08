@@ -273,3 +273,19 @@ update users set role = 'moderator' where email = 'mod@example.com';
 - [ ] Branch filter on Q&A feed
 - [ ] Push notifications (weekly digest)
 - [ ] Content moderation / report flow
+
+# Supabase configuration — copy to .env and fill in values.
+#
+# NEVER commit .env to version control.
+# The anon key is safe to use client-side ONLY because Row Level Security (RLS)
+# enforces access control on the database. The service_role key must NEVER
+# appear in client code or this file.
+#
+# Key rotation:
+#   1. Generate new keys in Supabase Dashboard -> Settings -> API
+#   2. Update .env with the new values
+#   3. Rebuild and redeploy the app with --dart-define-from-file=.env
+#   4. Revoke the old keys in Supabase Dashboard
+
+SUPABASE_URL= 
+SUPABASE_ANON_KEY= 
